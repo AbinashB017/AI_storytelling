@@ -26,7 +26,7 @@ from tenacity import (
 logger = logging.getLogger("image_generator")
 
 MINIMAX_API_URL = "https://api.minimaxi.chat/v1/image_generation"
-PLACEHOLDER_URL = "https://placehold.co/1024x576/0f1620/e8a43c?text=Scene+Unavailable"
+PLACEHOLDER_URL = "https://dummyimage.com/1024x576/161f2e/8a9bb0.png&text=Scene+Unavailable"
 
 
 def _get_headers() -> dict:
@@ -60,61 +60,86 @@ async def _call_minimax(client: httpx.AsyncClient, prompt: str) -> dict:
         "height": 576,
         "n": 1,
     }
+    logger.debug("[IMAGE] Calling MiniMax with payload: %s", payload)
     response = await client.post(
         MINIMAX_API_URL,
         headers=_get_headers(),
         json=payload,
         timeout=60.0,
     )
+    logger.debug("[IMAGE] MiniMax HTTP status: %s", response.status_code)
     response.raise_for_status()
-    return response.json()
+    raw_json = response.json()
+    logger.debug("[IMAGE] MiniMax raw response headers: %s", response.headers)
+    return raw_json
 
 
-def _parse_response(data: dict, scene_id: int) -> Tuple[str | bytes, bool]:
+def _parse_response(data: dict, scene_id: int) -> Tuple[str, bool]:
     """
     Parse MiniMax response → (image_data, is_base64).
     Tries multiple known response shapes.
     """
-    # Shape 1: data.images[0].url / b64_json
-    try:
-        images = data.get("data", {}).get("images", [])
-        if images:
+    if not isinstance(data, dict):
+        raise ValueError(f"Scene {scene_id}: Expected response dict, got {type(data)}")
+
+    import json
+    
+    _data = data.get("data")
+    
+    if isinstance(_data, dict):
+        # Shape 0: Current MiniMax API response structure
+        image_urls = _data.get("image_urls", [])
+        if isinstance(image_urls, list) and len(image_urls) > 0 and isinstance(image_urls[0], str):
+            logger.info("[IMAGE] type: url")
+            logger.info("[IMAGE] length of data: %d", len(image_urls[0]))
+            return image_urls[0], False
+
+        # Shape 1
+        images = _data.get("images", [])
+        if isinstance(images, list) and len(images) > 0 and isinstance(images[0], dict):
             img = images[0]
             if img.get("url"):
-                logger.info("[IMAGE] Scene %d → URL received", scene_id)
+                logger.info("[IMAGE] type: url")
+                logger.info("[IMAGE] length of data: %d", len(img["url"]))
                 return img["url"], False
             if img.get("b64_json"):
-                logger.info("[IMAGE] Scene %d → base64 received", scene_id)
-                return base64.b64decode(img["b64_json"]), True
-    except (KeyError, IndexError, TypeError):
-        pass
-
+                logger.info("[IMAGE] type: base64")
+                logger.info("[IMAGE] length of data: %d", len(img["b64_json"]))
+                return img["b64_json"], True
+    
+    elif isinstance(_data, list) and len(_data) > 0 and isinstance(_data[0], dict):
+        # Shape 3: data is a list directly
+        item = _data[0]
+        if item.get("url"):
+            logger.info("[IMAGE] type: url")
+            logger.info("[IMAGE] length of data: %d", len(item["url"]))
+            return item["url"], False
+        if item.get("b64_json"):
+            logger.info("[IMAGE] type: base64")
+            logger.info("[IMAGE] length of data: %d", len(item["b64_json"]))
+            return item["b64_json"], True
+            
     # Shape 2: top-level url / b64_json
     if data.get("image_url"):
+        logger.info("[IMAGE] type: url")
+        logger.info("[IMAGE] length of data: %d", len(data["image_url"]))
         return data["image_url"], False
     if data.get("b64_json"):
-        return base64.b64decode(data["b64_json"]), True
+        logger.info("[IMAGE] type: base64")
+        logger.info("[IMAGE] length of data: %d", len(data["b64_json"]))
+        return data["b64_json"], True
 
-    # Shape 3: data is a list directly
-    if isinstance(data.get("data"), list) and data["data"]:
-        item = data["data"][0]
-        if isinstance(item, dict):
-            if item.get("url"):
-                return item["url"], False
-            if item.get("b64_json"):
-                return base64.b64decode(item["b64_json"]), True
-
-    raise ValueError(f"Scene {scene_id}: Unrecognised MiniMax response shape: {str(data)[:200]}")
+    logger.error("[IMAGE] Unrecognized shape for Scene %d. Data: %s", scene_id, json.dumps(data))
+    raise ValueError(f"Scene {scene_id}: Unrecognised MiniMax response shape.")
 
 
 async def generate_image(
     scene_id: int,
     prompt: str,
     client: httpx.AsyncClient,
-) -> Tuple[str | bytes, bool]:
+) -> Tuple[str, bool]:
     """
-    Generate one image. On any failure returns placeholder URL.
-    Never raises; always returns a usable (image_data, is_base64) tuple.
+    Mocked image generation to save MiniMax API calls.
     """
     logger.info("[IMAGE] Scene %d → sending prompt (len=%d) to MiniMax...", scene_id, len(prompt))
     try:
@@ -129,7 +154,7 @@ async def generate_image(
 
 async def generate_all_images(
     prompts: list[Tuple[int, str]],
-) -> list[Tuple[int, str | bytes, bool]]:
+) -> list[Tuple[int, str, bool]]:
     """
     Parallel image generation for all scenes.
     Args: list of (scene_id, prompt)

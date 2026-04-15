@@ -119,6 +119,7 @@ async def extract_global_context(text: str, style: str = "cinematic") -> GlobalC
             system=CONTEXT_SYSTEM,
             temperature=0.3,
         )
+        logger.debug("[CONTEXT] Raw JSON from LLM: %s", raw)
     except Exception as exc:
         logger.warning("[CONTEXT] LLM failed (%s), using defaults.", exc)
         raw = {}
@@ -154,6 +155,7 @@ async def segment_scenes(text: str) -> List[Scene]:
             system=SEGMENTATION_SYSTEM,
             temperature=0.4,
         )
+        logger.debug("[SCENES] Raw breakdown from LLM: %s", raw)
 
         # Normalise: LLM may return dict wrapper or list directly
         if isinstance(raw, dict):

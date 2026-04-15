@@ -117,7 +117,9 @@ async def call_llm(
                 ),
                 timeout=TIMEOUT_SECONDS,
             )
+            logger.debug("[GROQ] raw response received (attempt %d)", attempt)
             content = response.choices[0].message.content.strip()
+            logger.debug("[GROQ] raw content: %s", content[:500])
             logger.info("[GROQ] Request successful | %s | response_len=%d", label, len(content))
             return content
 
@@ -142,13 +144,16 @@ async def call_llm_json(
     max_tokens: int = 2048,
 ) -> dict:
     """Call Groq and parse response as JSON. Strips markdown fences automatically."""
+    logger.debug("[GROQ] call_llm_json initiated. prompt_len=%d", len(prompt))
     raw = await call_llm(prompt, system=system, temperature=temperature, max_tokens=max_tokens)
     cleaned = raw.strip()
     if cleaned.startswith("```"):
         lines = cleaned.splitlines()
         cleaned = "\n".join(lines[1:-1]).strip()
     try:
-        return json.loads(cleaned)
+        parsed = json.loads(cleaned)
+        logger.debug("[GROQ] JSON successfully parsed: %s", str(parsed)[:300])
+        return parsed
     except json.JSONDecodeError as exc:
         logger.error("[GROQ] JSON parse error: %s | raw=%s", exc, raw[:300])
         raise ValueError(f"LLM did not return valid JSON: {exc}") from exc

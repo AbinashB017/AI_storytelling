@@ -4,22 +4,24 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Storyboard Generator</title>
-  <meta name="description" content="Convert your narrative into a cinematic AI-generated visual storyboard." />
+  <meta name="description" content="Transform your narrative into a cinematic AI-generated visual storyboard." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,600;1,400&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <!-- ── Hero / Input Section ───────────────────────────────────────────── -->
+  <!-- ── Hero / Input Section ─────────────────────────────────────────── -->
   <section id="input-section" class="input-section">
-
-    <div class="hero-bg"></div>
-
+    <div class="hero-bg">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+    </div>
     <div class="input-card">
       <div class="brand">
-        <span class="brand-icon">🎬</span>
+        <div class="brand-icon-wrap">🎬</div>
         <h1 class="brand-title">AI Storyboard <span class="brand-accent">Generator</span></h1>
         <p class="brand-sub">Transform your story into a cinematic visual experience</p>
       </div>
@@ -30,7 +32,7 @@
           id="narrative-input"
           class="form-textarea"
           rows="5"
-          placeholder="Write 3–5 sentences of your story here…&#10;&#10;Example: A young engineer discovers a hidden talent for painting after losing his job. He struggles through rejection but keeps creating. One day, his art captures the attention of a famous gallery owner. His life transforms completely."
+          placeholder="Write 3–5 sentences of your story here…&#10;&#10;Example: A young engineer loses his job and discovers a hidden talent for painting. He struggles through rejection but keeps creating. One day his art catches the eye of a famous gallery owner."
           maxlength="2000"
         ></textarea>
         <div class="char-count"><span id="char-count">0</span> / 2000</div>
@@ -47,9 +49,9 @@
             <option value="sketch">✏️ Sketch</option>
           </select>
         </div>
-
         <div class="form-group half align-end">
           <button id="generate-btn" class="generate-btn" onclick="generateStoryboard()">
+            <span class="btn-icon">✦</span>
             <span id="btn-text">Generate Storyboard</span>
             <span id="btn-loader" class="btn-loader hidden"></span>
           </button>
@@ -60,60 +62,79 @@
     </div>
   </section>
 
-  <!-- ── Slideshow Section ───────────────────────────────────────────────── -->
-  <section id="slideshow-section" class="slideshow-section hidden">
+  <!-- ── Storyboard Section ────────────────────────────────────────────── -->
+  <section id="storyboard-section" class="storyboard-section hidden">
 
-    <!-- Top bar -->
-    <div class="slideshow-topbar">
-      <button class="back-btn" onclick="backToInput()" title="Back to input">
-        ← Back
+    <!-- Top Bar -->
+    <header class="top-bar">
+      <button class="tb-btn" onclick="backToInput()" title="Back">
+        <span>←</span> Back
       </button>
-      <div class="slide-counter">
-        <span id="current-slide-num">1</span> / <span id="total-slides">0</span>
+
+      <div class="tb-center">
+        <span class="story-title" id="story-title">Your Storyboard</span>
       </div>
-      <button class="autoplay-btn" id="autoplay-btn" onclick="toggleAutoplay()" title="Toggle autoplay">
-        ▶ Autoplay
-      </button>
-    </div>
 
-    <!-- Slide viewer -->
-    <div class="slide-viewport" id="slide-viewport">
-      <div id="slide-container" class="slide-container">
-        <!-- Slides injected by JS -->
+      <div class="tb-actions">
+        <button class="tb-btn" id="view-toggle-btn" onclick="toggleView()" title="Switch view">
+          ⊞ Grid View
+        </button>
+        <button class="tb-btn accent" id="download-btn" onclick="downloadStoryboard()" title="Download">
+          ↓ Download
+        </button>
       </div>
-    </div>
+    </header>
 
-    <!-- Caption -->
-    <div class="caption-bar">
-      <div class="narrative-role" id="slide-role"></div>
-      <p class="caption-text" id="slide-caption"></p>
-    </div>
+    <!-- ── SLIDESHOW VIEW ─────────────────────────────────────────────── -->
+    <div id="slideshow-view" class="view-container">
 
-    <!-- Navigation -->
-    <div class="nav-bar">
-      <button class="nav-btn" id="prev-btn" onclick="prevSlide()" title="Previous scene">
-        ←
-      </button>
+      <div class="slideshow-controls">
+        <span class="slide-counter">
+          <span id="current-slide-num">1</span> / <span id="total-slides">0</span>
+        </span>
+        <button class="ctrl-btn" id="autoplay-btn" onclick="toggleAutoplay()">▶ Autoplay</button>
+      </div>
 
-      <!-- Dot indicators -->
+      <div class="slide-stage" id="slide-stage"
+           onmouseenter="pauseAutoplay()"
+           onmouseleave="resumeAutoplay()">
+        <div id="slide-track" class="slide-track">
+          <!-- Slides injected here -->
+        </div>
+
+        <button class="arrow-btn left" id="prev-btn" onclick="prevSlide()">‹</button>
+        <button class="arrow-btn right" id="next-btn" onclick="nextSlide()">›</button>
+      </div>
+
+      <div class="slide-meta">
+        <div class="slide-headline" id="slide-headline"></div>
+        <p class="slide-caption" id="slide-caption"></p>
+      </div>
+
       <div class="dot-row" id="dot-row"></div>
 
-      <button class="nav-btn" id="next-btn" onclick="nextSlide()" title="Next scene">
-        →
-      </button>
+    </div>
+
+    <!-- ── GRID VIEW ─────────────────────────────────────────────────── -->
+    <div id="grid-view" class="view-container hidden">
+      <div class="panel-grid" id="panel-grid">
+        <!-- Cards injected here -->
+      </div>
     </div>
 
   </section>
 
-  <!-- ── Loading Overlay ─────────────────────────────────────────────────── -->
+  <!-- ── Loading Overlay ──────────────────────────────────────────────── -->
   <div id="loading-overlay" class="loading-overlay hidden">
     <div class="loading-box">
-      <div class="spinner"></div>
+      <div class="loading-ring">
+        <div></div><div></div><div></div><div></div>
+      </div>
       <p class="loading-title">Crafting your storyboard…</p>
       <div class="loading-steps">
-        <div class="loading-step active" id="step-1">🧠 Understanding the story</div>
+        <div class="loading-step" id="step-1">🧠 Understanding the story</div>
         <div class="loading-step" id="step-2">🎭 Segmenting scenes</div>
-        <div class="loading-step" id="step-3">✍️ Enriching descriptions</div>
+        <div class="loading-step" id="step-3">✍️  Enriching descriptions</div>
         <div class="loading-step" id="step-4">🎨 Generating images</div>
         <div class="loading-step" id="step-5">✅ Assembling storyboard</div>
       </div>

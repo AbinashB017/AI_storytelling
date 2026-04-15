@@ -30,12 +30,11 @@ from app.services.scene_generator import extract_global_context, segment_scenes
 from app.services.feature_extractor import extract_all_features
 from app.services.prompt_builder import build_all_enriched_scenes
 from app.services.image_generator import generate_all_images
-from app.services.cloudinary_service import resolve_image_url
 from app.utils.validator import validate_panels
 
 logger = logging.getLogger("pipeline")
 
-PLACEHOLDER_URL = "https://placehold.co/1024x576/0f1620/e8a43c?text=Scene+Unavailable"
+PLACEHOLDER_URL = "https://dummyimage.com/1024x576/161f2e/8a9bb0.png&text=Scene+Unavailable"
 
 
 async def run(text: str, style: str = "cinematic") -> StoryboardResponse:
@@ -71,21 +70,13 @@ async def run(text: str, style: str = "cinematic") -> StoryboardResponse:
     image_results = await generate_all_images(prompt_pairs)
     logger.info("[IMAGES] %d image results received", len(image_results))
 
-    # ── Stage 6: Cloudinary Upload (PARALLEL, conditional) ───────────────────
-    logger.info("[PIPELINE] Stage 6 → Parallel Cloudinary upload (conditional)")
-    url_tasks = [
-        resolve_image_url(scene_id, image_data, is_base64)
-        for scene_id, image_data, is_base64 in image_results
-    ]
-    resolved_urls = await asyncio.gather(*url_tasks)
-
-    # ── Stage 7: Assemble + Validate Panels ──────────────────────────────────
+    # ── Stage 6 & 7: Assemble + Validate Panels ──────────────────────────────────
     logger.info("[PIPELINE] Stage 7 → Assembling panels")
 
     scene_lookup = {es.scene_id: es for es in enriched_scenes}
     url_lookup   = {
-        scene_id: (url or PLACEHOLDER_URL)
-        for (scene_id, _, _), url in zip(image_results, resolved_urls)
+        scene_id: (image_data or PLACEHOLDER_URL)
+        for scene_id, image_data, is_base64 in image_results
     }
 
     raw_panels: List[Panel] = []
@@ -96,6 +87,7 @@ async def run(text: str, style: str = "cinematic") -> StoryboardResponse:
         raw_panels.append(Panel(
             scene_id       = scene_id,
             image_url      = url if url else PLACEHOLDER_URL,
+            headline       = es.headline or es.narrative_role.replace("_", " ").title(),
             caption        = es.scene_text,
             narrative_role = es.narrative_role,
         ))

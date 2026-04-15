@@ -3,6 +3,8 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 
 from app.endpoints.storyboard import router as storyboard_router
 
@@ -10,7 +12,7 @@ load_dotenv()
 
 # ─── Logging ───────────────────────────────────────────────────────────────
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
@@ -39,6 +41,11 @@ app.add_middleware(
 
 # ─── Routers ───────────────────────────────────────────────────────────────
 app.include_router(storyboard_router, prefix="/api/v1", tags=["Storyboard"])
+
+# ─── Static Files ──────────────────────────────────────────────────────────
+# Ensure static directory exists
+os.makedirs("static", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 @app.get("/", tags=["Health"])

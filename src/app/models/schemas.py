@@ -24,6 +24,7 @@ class StoryboardRequest(BaseModel):
 class Panel(BaseModel):
     scene_id: int = Field(..., description="1-indexed scene number.")
     image_url: str = Field(..., description="Hosted URL of the generated scene image.")
+    headline: Optional[str] = Field(None, description="Short catchy headline for this panel.")
     caption: str = Field(..., description="Original scene text for this panel.")
     narrative_role: Optional[str] = Field(
         None, description="Narrative beat (e.g., problem, discovery, resolution)."
@@ -67,3 +68,4 @@ class EnrichedScene(BaseModel):
     narrative_role: str
     enriched_description: str
     final_prompt: str
+    headline: str = ""
