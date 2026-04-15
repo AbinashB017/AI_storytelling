@@ -1,15 +1,16 @@
 """
-pipeline.py
-───────────
-Full 9-step storyboard generation pipeline orchestrator.
+pipeline.py  (v2 — truly parallel, robust, always ≥ 3 panels)
+──────────────────────────────────────────────────────────────
+9-step storyboard pipeline orchestrator.
 
-Stage layout:
-  Stage 1 [Sequential]:      Global context extraction + Scene segmentation
-  Stage 2 [Sequential]:      Feature extraction (lightweight, no I/O)
-  Stage 3 [Parallel]:        Scene enrichment + prompt engineering (asyncio.gather)
-  Stage 4 [Parallel]:        Image generation via MiniMax (asyncio.gather)
-  Stage 5 [Parallel/Cond]:   Cloudinary upload if base64 (asyncio.gather)
-  Stage 6 [Sequential]:      Validate + assemble panels
+Stage layout (all parallel stages use asyncio.gather):
+  Stage 1 [Parallel]:   Global context + Scene segmentation (concurrent LLM calls)
+  Stage 2 [Sync]:       Feature extraction (lightweight, no I/O)
+  Stage 3 [Parallel]:   Scene enrichment via LLM  (asyncio.gather)
+  Stage 4 [Sync]:       Prompt engineering (CPU only)
+  Stage 5 [Parallel]:   Image generation via MiniMax (asyncio.gather)
+  Stage 6 [Parallel]:   Cloudinary upload if base64 (asyncio.gather)
+  Stage 7 [Sync]:       Validate + assemble panels
 """
 
 import asyncio
@@ -34,70 +35,57 @@ from app.utils.validator import validate_panels
 
 logger = logging.getLogger("pipeline")
 
+PLACEHOLDER_URL = "https://placehold.co/1024x576/0f1620/e8a43c?text=Scene+Unavailable"
+
 
 async def run(text: str, style: str = "cinematic") -> StoryboardResponse:
     """
-    Execute the full 9-step storyboard generation pipeline.
-
-    Args:
-        text:  User narrative paragraph (3–5 sentences)
-        style: Visual style (default: cinematic)
-
-    Returns:
-        StoryboardResponse with validated panels
+    Execute the full 9-step storyboard pipeline.
+    Guaranteed to return ≥ 3 panels (using placeholder images where needed).
     """
     start = time.perf_counter()
-    logger.info("[PIPELINE] ══ Starting pipeline ══ style=%s | text_len=%d", style, len(text))
+    logger.info("[PIPELINE] ══ Starting ══ style=%s | text_len=%d", style, len(text))
 
-    # ── Stage 1: Global Context + Scene Segmentation (Sequential) ───────────
-    logger.info("[PIPELINE] Stage 1 → Global context extraction + scene segmentation")
+    # ── Stage 1: Global Context + Scene Segmentation (PARALLEL) ──────────────
+    logger.info("[PIPELINE] Stage 1 → Parallel: global context + scene segmentation")
     global_context, scenes = await asyncio.gather(
         extract_global_context(text, style),
         segment_scenes(text),
     )
-    logger.info(
-        "[PIPELINE] Stage 1 complete → %d scenes | character: %s",
-        len(scenes),
-        global_context.character_identity,
-    )
+    logger.info("[SCENES] %d scenes segmented: %s", len(scenes), [s.narrative_role for s in scenes])
 
-    # ── Stage 2: Feature Extraction (Synchronous, no I/O) ───────────────────
+    # ── Stage 2: Feature Extraction (sync, no I/O) ────────────────────────────
     logger.info("[PIPELINE] Stage 2 → Feature extraction")
     features_list: List[SceneFeatures] = extract_all_features(scenes, global_context)
-    logger.info("[PIPELINE] Stage 2 complete → features extracted for %d scenes", len(features_list))
 
-    # ── Stage 3: Parallel Scene Enrichment + Prompt Engineering ─────────────
-    logger.info("[PIPELINE] Stage 3 → Parallel scene enrichment (LLM)")
+    # ── Stage 3: Scene Enrichment (PARALLEL LLM calls) ────────────────────────
+    logger.info("[PIPELINE] Stage 3 → Parallel scene enrichment (%d scenes)", len(scenes))
     enriched_scenes: List[EnrichedScene] = await build_all_enriched_scenes(
         scenes, features_list, global_context, style
     )
-    logger.info("[PIPELINE] Stage 3 complete → %d scenes enriched", len(enriched_scenes))
+    logger.info("[PROMPTS] %d enriched prompts built", len(enriched_scenes))
 
-    # ── Stage 4: Parallel Image Generation (MiniMax) ────────────────────────
-    logger.info("[PIPELINE] Stage 4 → Parallel image generation")
+    # ── Stage 5: Image Generation (PARALLEL, never fails) ────────────────────
+    logger.info("[PIPELINE] Stage 5 → Parallel image generation (%d scenes)", len(enriched_scenes))
     prompt_pairs = [(es.scene_id, es.final_prompt) for es in enriched_scenes]
     image_results = await generate_all_images(prompt_pairs)
-    # image_results: list of (scene_id, image_data | None, is_base64)
-    logger.info("[PIPELINE] Stage 4 complete → %d images generated", len(image_results))
+    logger.info("[IMAGES] %d image results received", len(image_results))
 
-    # ── Stage 5: Parallel Cloudinary Upload (Conditional) ───────────────────
-    logger.info("[PIPELINE] Stage 5 → Parallel Cloudinary upload (conditional)")
+    # ── Stage 6: Cloudinary Upload (PARALLEL, conditional) ───────────────────
+    logger.info("[PIPELINE] Stage 6 → Parallel Cloudinary upload (conditional)")
     url_tasks = [
         resolve_image_url(scene_id, image_data, is_base64)
         for scene_id, image_data, is_base64 in image_results
     ]
-    image_urls = await asyncio.gather(*url_tasks)
-    logger.info("[PIPELINE] Stage 5 complete → URLs resolved")
+    resolved_urls = await asyncio.gather(*url_tasks)
 
-    # ── Stage 6: Assemble + Validate Panels ─────────────────────────────────
-    logger.info("[PIPELINE] Stage 6 → Assembling and validating panels")
+    # ── Stage 7: Assemble + Validate Panels ──────────────────────────────────
+    logger.info("[PIPELINE] Stage 7 → Assembling panels")
 
-    # Build lookup: scene_id → enriched_scene
     scene_lookup = {es.scene_id: es for es in enriched_scenes}
-    # Build lookup: scene_id → url
-    url_lookup = {
-        scene_id: url
-        for (scene_id, _, _), url in zip(image_results, image_urls)
+    url_lookup   = {
+        scene_id: (url or PLACEHOLDER_URL)
+        for (scene_id, _, _), url in zip(image_results, resolved_urls)
     }
 
     raw_panels: List[Panel] = []
@@ -105,29 +93,27 @@ async def run(text: str, style: str = "cinematic") -> StoryboardResponse:
         es = scene_lookup.get(scene_id)
         if es is None:
             continue
-        raw_panels.append(
-            Panel(
-                scene_id=scene_id,
-                image_url=url or "",
-                caption=es.scene_text,
-                narrative_role=es.narrative_role,
-            )
-        )
+        raw_panels.append(Panel(
+            scene_id       = scene_id,
+            image_url      = url if url else PLACEHOLDER_URL,
+            caption        = es.scene_text,
+            narrative_role = es.narrative_role,
+        ))
 
-    # Sort by scene_id for correct narrative order
+    # Sort panels in narrative order
     raw_panels.sort(key=lambda p: p.scene_id)
+    logger.info("[PIPELINE] %d raw panels assembled before validation", len(raw_panels))
 
-    # Validate (raises HTTP 422 if < 3 valid panels)
-    validated_panels = validate_panels(raw_panels)
+    # Validate (raises HTTP 422 only if < 3 valid panels)
+    validated = validate_panels(raw_panels)
 
     elapsed = time.perf_counter() - start
     logger.info(
         "[PIPELINE] ══ Complete ══ %d panels | %.2fs elapsed",
-        len(validated_panels),
-        elapsed,
+        len(validated), elapsed,
     )
 
     return StoryboardResponse(
-        panels=validated_panels,
-        total_scenes=len(validated_panels),
+        panels      = validated,
+        total_scenes= len(validated),
     )

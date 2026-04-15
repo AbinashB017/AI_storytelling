@@ -1,10 +1,11 @@
 """
-image_generator.py
-──────────────────
+image_generator.py  (v2 — never returns empty URL)
+────────────────────────────────────────────────────
 Step 7: Async image generation via MiniMax API.
-- Returns URL directly if available (skips Cloudinary)
-- Returns base64 bytes if image is base64-encoded (Cloudinary needed)
-- Retry: 3 attempts, 30s timeout
+- Retries up to 3 times on failure
+- Returns placeholder URL on all failures (NEVER returns None or empty string)
+- Detects URL vs base64 response automatically
+- All scenes generated in parallel via asyncio.gather
 """
 
 import asyncio
@@ -25,12 +26,13 @@ from tenacity import (
 logger = logging.getLogger("image_generator")
 
 MINIMAX_API_URL = "https://api.minimaxi.chat/v1/image_generation"
+PLACEHOLDER_URL = "https://placehold.co/1024x576/0f1620/e8a43c?text=Scene+Unavailable"
 
 
 def _get_headers() -> dict:
-    api_key = os.getenv("MINIMAX_API_KEY")
+    api_key = os.getenv("MINIMAX_API_KEY", "").strip()
     if not api_key:
-        raise EnvironmentError("MINIMAX_API_KEY is not set.")
+        raise EnvironmentError("MINIMAX_API_KEY is not set in environment.")
     return {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -38,14 +40,19 @@ def _get_headers() -> dict:
 
 
 @retry(
-    retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.ConnectError, httpx.TimeoutException)),
+    retry=retry_if_exception_type((
+        httpx.HTTPStatusError,
+        httpx.ConnectError,
+        httpx.TimeoutException,
+        httpx.RemoteProtocolError,
+    )),
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=10),
     before_sleep=before_sleep_log(logger, logging.WARNING),
     reraise=True,
 )
 async def _call_minimax(client: httpx.AsyncClient, prompt: str) -> dict:
-    """Make a single async call to MiniMax image generation API."""
+    """Single async call to MiniMax image API with retry decoration."""
     payload = {
         "model": "image-01",
         "prompt": prompt,
@@ -57,7 +64,7 @@ async def _call_minimax(client: httpx.AsyncClient, prompt: str) -> dict:
         MINIMAX_API_URL,
         headers=_get_headers(),
         json=payload,
-        timeout=30.0,
+        timeout=60.0,
     )
     response.raise_for_status()
     return response.json()
@@ -65,32 +72,39 @@ async def _call_minimax(client: httpx.AsyncClient, prompt: str) -> dict:
 
 def _parse_response(data: dict, scene_id: int) -> Tuple[str | bytes, bool]:
     """
-    Parse MiniMax response.
-    Returns: (image_data, is_base64)
-      - If URL found: (str url, False)
-      - If base64 found: (bytes, True)
+    Parse MiniMax response → (image_data, is_base64).
+    Tries multiple known response shapes.
     """
-    # Try to get URL first
+    # Shape 1: data.images[0].url / b64_json
     try:
         images = data.get("data", {}).get("images", [])
         if images:
             img = images[0]
-            if "url" in img and img["url"]:
-                logger.info("[IMAGE] Scene %d → received URL", scene_id)
+            if img.get("url"):
+                logger.info("[IMAGE] Scene %d → URL received", scene_id)
                 return img["url"], False
-            if "b64_json" in img and img["b64_json"]:
-                logger.info("[IMAGE] Scene %d → received base64", scene_id)
+            if img.get("b64_json"):
+                logger.info("[IMAGE] Scene %d → base64 received", scene_id)
                 return base64.b64decode(img["b64_json"]), True
     except (KeyError, IndexError, TypeError):
         pass
 
-    # Fallback: check top-level response structure
-    if "image_url" in data:
+    # Shape 2: top-level url / b64_json
+    if data.get("image_url"):
         return data["image_url"], False
-    if "b64_json" in data:
+    if data.get("b64_json"):
         return base64.b64decode(data["b64_json"]), True
 
-    raise ValueError(f"Scene {scene_id}: Could not extract image from MiniMax response: {data}")
+    # Shape 3: data is a list directly
+    if isinstance(data.get("data"), list) and data["data"]:
+        item = data["data"][0]
+        if isinstance(item, dict):
+            if item.get("url"):
+                return item["url"], False
+            if item.get("b64_json"):
+                return base64.b64decode(item["b64_json"]), True
+
+    raise ValueError(f"Scene {scene_id}: Unrecognised MiniMax response shape: {str(data)[:200]}")
 
 
 async def generate_image(
@@ -99,41 +113,42 @@ async def generate_image(
     client: httpx.AsyncClient,
 ) -> Tuple[str | bytes, bool]:
     """
-    Generate a single image for a scene.
-    Returns (image_data, is_base64).
+    Generate one image. On any failure returns placeholder URL.
+    Never raises; always returns a usable (image_data, is_base64) tuple.
     """
-    logger.info("[IMAGE] Scene %d → sending to MiniMax (prompt_len=%d)...", scene_id, len(prompt))
+    logger.info("[IMAGE] Scene %d → sending prompt (len=%d) to MiniMax...", scene_id, len(prompt))
     try:
         data = await _call_minimax(client, prompt)
         result = _parse_response(data, scene_id)
+        logger.info("[IMAGE] Scene %d → success", scene_id)
         return result
     except Exception as exc:
-        logger.error("[IMAGE] Scene %d → FAILED: %s", scene_id, exc)
-        raise
+        logger.error("[IMAGE] Scene %d → all retries failed: %s — using placeholder", scene_id, exc)
+        return PLACEHOLDER_URL, False   # ← NEVER returns empty
 
 
 async def generate_all_images(
-    prompts: list[Tuple[int, str]]
+    prompts: list[Tuple[int, str]],
 ) -> list[Tuple[int, str | bytes, bool]]:
     """
     Parallel image generation for all scenes.
-    Args:
-        prompts: list of (scene_id, prompt) tuples
-    Returns:
-        list of (scene_id, image_data, is_base64)
+    Args: list of (scene_id, prompt)
+    Returns: list of (scene_id, image_data, is_base64)
+    Guarantees: every entry has a non-None image_data (placeholder on error).
     """
+    logger.info("[IMAGES] Generating %d images in parallel...", len(prompts))
     async with httpx.AsyncClient() as client:
-        tasks = [generate_image(scene_id, prompt, client) for scene_id, prompt in prompts]
-        results_raw = await asyncio.gather(*tasks, return_exceptions=True)
+        tasks = [generate_image(sid, prompt, client) for sid, prompt in prompts]
+        raw_results = await asyncio.gather(*tasks)   # never raises — each task handles its own errors
 
     results = []
-    for i, (scene_id, prompt) in enumerate(prompts):
-        res = results_raw[i]
-        if isinstance(res, Exception):
-            logger.error("[IMAGE] Scene %d failed permanently: %s", scene_id, res)
-            results.append((scene_id, None, False))
-        else:
-            image_data, is_base64 = res
-            results.append((scene_id, image_data, is_base64))
+    for (scene_id, _), (image_data, is_base64) in zip(prompts, raw_results):
+        results.append((scene_id, image_data, is_base64))
+        logger.info(
+            "[IMAGES] Scene %d → %s",
+            scene_id,
+            "base64" if is_base64 else (str(image_data)[:60] if image_data else "placeholder"),
+        )
 
+    logger.info("[IMAGES] All %d images resolved.", len(results))
     return results

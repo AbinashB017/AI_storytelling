@@ -1,15 +1,10 @@
 """
-groq_client.py
-──────────────
-Async Groq LLM wrapper with:
-- Multi-key round-robin load balancing (GROQ_API_KEY_1, GROQ_API_KEY_2)
-- Thread-safe key selection via asyncio.Lock + itertools.cycle
-- Retry with key failover (max 3 retries, switches key on each retry)
-- Structured logging per call
-
-Exposes:
-  call_llm(prompt, system, temperature, max_tokens) -> str
-  call_llm_json(prompt, system, temperature, max_tokens) -> dict
+groq_client.py  (v3)
+────────────────────
+- Supports N Groq API keys: GROQ_API_KEY_1, GROQ_API_KEY_2, ... (auto-detected)
+- Round-robin distribution via itertools.cycle + asyncio.Lock
+- Key-switching failover on every retry (max 3 attempts)
+- Falls back to legacy GROQ_API_KEY if no numbered keys found
 """
 
 import asyncio
@@ -26,68 +21,73 @@ logger = logging.getLogger("groq_client")
 MODEL = "llama-3.3-70b-versatile"
 MAX_RETRIES = 3
 TIMEOUT_SECONDS = 30.0
+PLACEHOLDER_IMG = "https://placehold.co/1024x576/1a1a2e/ffffff?text=Scene+Unavailable"
 
-# ─── Key Pool ──────────────────────────────────────────────────────────────
+
+# ── Key Pool ─────────────────────────────────────────────────────────────────
 
 class GroqKeyPool:
-    """Thread-safe round-robin Groq API key pool."""
+    """Thread-safe round-robin Groq API key pool. Supports any number of keys."""
 
     def __init__(self) -> None:
-        self._keys: List[Tuple[str, str]] = []   # list of (label, api_key)
+        self._keys: List[Tuple[str, str]] = []
         self._cycle: Optional[Iterator] = None
         self._clients: dict[str, AsyncGroq] = {}
         self._lock = asyncio.Lock()
         self._initialized = False
 
     def _load_keys(self) -> None:
-        """Load keys from environment variables."""
-        keys = []
-        for i in range(1, 10):  # Support up to 9 keys
-            val = os.getenv(f"GROQ_API_KEY_{i}")
+        keys: List[Tuple[str, str]] = []
+
+        # Auto-detect GROQ_API_KEY_1, _2, _3 ... _N
+        for i in range(1, 20):
+            val = os.getenv(f"GROQ_API_KEY_{i}", "").strip()
             if val:
                 keys.append((f"key_{i}", val))
 
-        # Fallback: legacy single-key support
+        # Legacy fallback: single GROQ_API_KEY
         if not keys:
-            single = os.getenv("GROQ_API_KEY")
+            single = os.getenv("GROQ_API_KEY", "").strip()
             if single:
                 keys.append(("key_1", single))
 
         if not keys:
             raise EnvironmentError(
-                "No Groq API keys found. Set GROQ_API_KEY_1 and/or GROQ_API_KEY_2 in .env"
+                "No Groq API keys found. Set GROQ_API_KEY_1 (and optionally _2, _3 ...) in .env"
             )
 
         self._keys = keys
         self._cycle = itertools.cycle(keys)
-        for label, key in keys:
-            self._clients[label] = AsyncGroq(api_key=key)
-
-        logger.info("[GROQ] Key pool initialised with %d key(s): %s", len(keys), [k[0] for k in keys])
+        self._clients = {label: AsyncGroq(api_key=key) for label, key in keys}
         self._initialized = True
+        logger.info(
+            "[GROQ] Key pool ready: %d key(s) → %s",
+            len(keys),
+            [k[0] for k in keys],
+        )
 
     async def next_client(self) -> Tuple[str, AsyncGroq]:
-        """Return the next (label, AsyncGroq client) in round-robin order. Thread-safe."""
+        """Return next (label, client) in round-robin order. Async-safe."""
         async with self._lock:
             if not self._initialized:
                 self._load_keys()
             label, _ = next(self._cycle)
             return label, self._clients[label]
 
-    def client_for_next_key(self, current_label: str) -> Tuple[str, AsyncGroq]:
-        """Return the next key after the given one (for failover). Not lock-guarded (retry context)."""
+    def failover_client(self, current_label: str) -> Tuple[str, AsyncGroq]:
+        """Return the next key after current_label (for failover). No lock needed."""
         labels = [k[0] for k in self._keys]
+        if not labels:
+            raise RuntimeError("Key pool is empty.")
         idx = labels.index(current_label) if current_label in labels else -1
-        next_idx = (idx + 1) % len(labels)
-        next_label = labels[next_idx]
+        next_label = labels[(idx + 1) % len(labels)]
         return next_label, self._clients[next_label]
 
 
-# Singleton pool
 _pool = GroqKeyPool()
 
 
-# ─── Core LLM Call ────────────────────────────────────────────────────────
+# ── Core LLM Call ─────────────────────────────────────────────────────────────
 
 async def call_llm(
     prompt: str,
@@ -96,11 +96,8 @@ async def call_llm(
     max_tokens: int = 2048,
 ) -> str:
     """
-    Send a prompt to Groq with round-robin key selection and retry-with-failover.
-
-    - Tries up to MAX_RETRIES times
-    - Switches to next key on each retry
-    - Logs key used, retries, and failures
+    Call Groq with round-robin key selection and retry-with-key-failover.
+    Max MAX_RETRIES attempts; switches key on each retry.
     """
     label, client = await _pool.next_client()
     last_exc: Optional[Exception] = None
@@ -108,20 +105,18 @@ async def call_llm(
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             logger.info("[GROQ] Using %s | attempt=%d | prompt_len=%d", label, attempt, len(prompt))
-
             response = await asyncio.wait_for(
                 client.chat.completions.create(
                     model=MODEL,
                     messages=[
                         {"role": "system", "content": system},
-                        {"role": "user", "content": prompt},
+                        {"role": "user",   "content": prompt},
                     ],
                     temperature=temperature,
                     max_tokens=max_tokens,
                 ),
                 timeout=TIMEOUT_SECONDS,
             )
-
             content = response.choices[0].message.content.strip()
             logger.info("[GROQ] Request successful | %s | response_len=%d", label, len(content))
             return content
@@ -129,18 +124,16 @@ async def call_llm(
         except (APIConnectionError, APIStatusError, asyncio.TimeoutError) as exc:
             last_exc = exc
             logger.warning("[GROQ] %s failed on attempt %d: %s", label, attempt, exc)
-
             if attempt < MAX_RETRIES:
-                # Switch to next key for failover
-                label, client = _pool.client_for_next_key(label)
+                label, client = _pool.failover_client(label)
                 logger.info("[GROQ] Retry with %s", label)
-                await asyncio.sleep(2 ** (attempt - 1))  # backoff: 1s, 2s
+                await asyncio.sleep(2 ** (attempt - 1))
 
     logger.error("[GROQ] All %d attempts failed. Last error: %s", MAX_RETRIES, last_exc)
-    raise last_exc
+    raise last_exc  # caller decides how to handle
 
 
-# ─── JSON Helper ──────────────────────────────────────────────────────────
+# ── JSON Helper ───────────────────────────────────────────────────────────────
 
 async def call_llm_json(
     prompt: str,
@@ -148,18 +141,12 @@ async def call_llm_json(
     temperature: float = 0.3,
     max_tokens: int = 2048,
 ) -> dict:
-    """
-    Call Groq and parse the response as JSON.
-    Strips markdown fences (```json ... ```) if present.
-    Raises ValueError if response cannot be parsed.
-    """
+    """Call Groq and parse response as JSON. Strips markdown fences automatically."""
     raw = await call_llm(prompt, system=system, temperature=temperature, max_tokens=max_tokens)
-
     cleaned = raw.strip()
     if cleaned.startswith("```"):
         lines = cleaned.splitlines()
         cleaned = "\n".join(lines[1:-1]).strip()
-
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError as exc:
