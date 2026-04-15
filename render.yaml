@@ -5,21 +5,22 @@ services:
     region: oregon
     plan: free
 
+    # ── Python version (MUST be 3.11 — pydantic-core has no 3.14 wheels) ──────
+    pythonVersion: "3.11.9"
+
     # ── Build ──────────────────────────────────────────────────────────────────
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
 
     # ── Start ─────────────────────────────────────────────────────────────────
-    # PYTHONPATH must include src/ so `from app.xxx` imports resolve correctly
     startCommand: PYTHONPATH=src uvicorn app.main:app --host 0.0.0.0 --port $PORT
 
     # ── Health Check ──────────────────────────────────────────────────────────
     healthCheckPath: /health
 
     # ── Environment Variables ─────────────────────────────────────────────────
-    # ⚠️  Fill these in on the Render dashboard — NEVER commit real values here
     envVars:
       - key: GROQ_API_KEY_1
-        sync: false          # Set manually on Render dashboard
+        sync: false
       - key: GROQ_API_KEY_2
         sync: false
       - key: GROQ_API_KEY_3
@@ -34,6 +35,5 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
-      # Optional: comma-separated allowed origins (leave as * for dev)
       - key: ALLOWED_ORIGINS
         value: "*"
