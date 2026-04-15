@@ -1,51 +1,85 @@
-# AI Storyboard Generator (Pitch Visualizer)
+# Scenova — Cinematic Visual Director
 
-[![GenAI Project](https://img.shields.io/badge/GenAI-Project-blue)](https://github.com/AbinashB017/AI_storytelling)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.95.1-green)](https://fastapi.tiangolo.com/)
-[![React](https://img.shields.io/badge/Frontend-Vercel-black)](https://vercel.com)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.95+-green)](https://fastapi.tiangolo.com/)
+[![Groq](https://img.shields.io/badge/LLM-Groq%20%2F%20LLaMA3-orange)](https://groq.com)
+[![MiniMax](https://img.shields.io/badge/ImageGen-MiniMax-blue)](https://minimaxi.com)
+[![Cloudinary](https://img.shields.io/badge/Storage-Cloudinary-blueviolet)](https://cloudinary.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**AI Storyboard Generator** is a powerful GenAI-driven system that transforms a simple narrative paragraph into a visually coherent, cinematically rich storyboard. Unlike standard text-to-image tools, this system focuses on **narrative continuity** and **semantic depth**, ensuring that every panel feels like a part of the same story.
+**Scenova** is a production-grade, AI-powered **Cinematic Visual Director** that transforms a short narrative paragraph into a visually coherent, multi-panel storyboard. The system combines deep LLM reasoning (Groq/LLaMA) with high-fidelity image generation (MiniMax) and persistent cloud storage (Cloudinary) to deliver a professional-grade editorial experience.
 
----
-
-## 🎯 Project Overview
-
-This tool converts a short narrative (3–5 sentences) into a structured visual storyboard. By performing deep semantic understanding and narrative enrichment, the system maintains visual consistency across multiple generated scenes.
-
-### 🧠 The Core Idea: Context-Aware Generation
-Standard image generation often produces disjointed results for a multi-sentence story. Our pipeline solves this by:
-1. **Segmenting** the story into distinct scenes.
-2. **Extracting** global features (identity, setting, style).
-3. **Enriching** each scene with context-aware attributes before generation.
+The frontend is a fully redesigned, **glassmorphic dark/light mode UI** built with Tailwind CSS and a custom "Anamorphic Frame" design system — inspired by professional film editing suites.
 
 ---
 
-## 🔥 Key Innovations
+## 🎯 What It Does
 
-- **Global Context Maintenance:** Ensures the same characters, environment, and visual style persist through all storyboard panels.
-- **Semantic Enrichment:** Instead of raw prompts, the system extracts tone, emotion, and environment to build "scene-level descriptions."
-- **Continuous Narrative Flow:** Strategic prompt engineering prevents "style drift" between images.
-- **Cinematic Vision:** Optimized for "pitch visualizers," providing professional-grade storyboard outputs.
+Give Scenova a story in 3–5 sentences. It returns a full, visually consistent storyboard with:
+- AI-generated scene images per panel
+- Cinematic headlines and captions per scene
+- Narrative role tags (e.g., Master Shot, Rising Action, Resolution)
+- Downloadable HTML storyboard artifact
+
+---
+
+## ✨ What's New (Latest Update)
+
+### 🎨 Full UI Overhaul — "Anamorphic Frame" Design System
+- **Glassmorphic Purple/Violet Theme:** Deep obsidian backgrounds with electric violet (`#7c5cff`) accents and `backdrop-blur` glass cards.
+- **Sidebar Navigation:** Clean permanent sidebar with "Scenova AI" module label — Timeline and Moodboard removed for focused UX.
+- **Dark / Light Mode Toggle:** A premium pill toggle in the top navigation bar. Light mode uses a warm lavender/parchment palette (`#f0ebff`) — not plain white — with full text contrast enforcement.
+- **Aligned Input Grid:** "Narrative Context" textarea and controls (Visual Aesthetic dropdown + Generate Storyboard button) are now perfectly height-aligned in a 12-column grid.
+- **Cinematic Slideshow (21:9):** Widescreen aspect-ratio slide viewer with glassmorphic prev/next controls, scene counter badge, dot-row navigator.
+- **Grid View:** Grayscale-to-color hover reveals with scene badges.
+- **Loading Overlay:** Animated central orb with pulsing ring and step-by-step pipeline progress.
+- **No backend changes** — all UI work is strictly frontend.
+
+### 🧠 Engine Labeling Update
+- Engine footer updated to accurately reflect: **Groq · MiniMax · Cloudinary**
 
 ---
 
 ## 🏗️ Architecture
 
-The system follows a modern decoupled architecture for high performance and scalability:
-
-```mermaid
-graph TD
-    A[Frontend: HTML/CSS/JS - Vercel] --> B[Backend: FastAPI - Render]
-    B --> C[LLM: Groq LLaMA 3]
-    C --> D[Scene Segmentation & Enrichment]
-    D --> E[Image Gen API: MiniMax / HuggingFace]
-    E --> F[Structured Storyboard UI]
+```
+┌─────────────────────────────────────────────────────┐
+│                  SCENOVA FRONTEND                     │
+│  (Tailwind CSS / Vanilla JS / Glassmorphic Dark UI)   │
+│  - Visual Director Input                              │
+│  - Cinematic Slideshow + Grid View                    │
+│  - Dark / Light Mode Toggle                           │
+└───────────────────────┬─────────────────────────────┘
+                        │ POST /api/v1/generate-storyboard
+                        ▼
+┌─────────────────────────────────────────────────────┐
+│              FASTAPI BACKEND (Uvicorn)                │
+│  src/app/main.py → endpoints/storyboard.py            │
+└──────────────────┬────────────────────────────────┘
+                   │
+         ┌─────────▼──────────┐
+         │   9-STEP PIPELINE   │
+         └─────────────────────┘
+         │
+         ├─ Step 1: Global Context Extraction   ──► Groq (LLaMA 3)
+         ├─ Step 2: Scene Segmentation           ──► Groq (LLaMA 3)
+         ├─ Step 3: Narrative Role Assignment    ──► Groq (LLaMA 3)
+         ├─ Step 4: Scene Feature Extraction     ──► Groq (LLaMA 3)
+         ├─ Step 5: Scene Enrichment             ──► Groq (LLaMA 3)
+         ├─ Step 6: Cinematic Prompt Engineering ──► Groq (LLaMA 3)
+         ├─ Step 7: Headline + Caption Gen       ──► Groq (LLaMA 3)
+         ├─ Step 8: Parallel Image Generation    ──► MiniMax API
+         └─ Step 9: Cloud Upload + URL Return    ──► Cloudinary
 ```
 
-- **Frontend:** Responsive, clean UI deployed on **Vercel**.
-- **Backend:** High-performance asynchronous API built with **FastAPI**, deployed on **Render**.
-- **LLM Layer:** **Groq (LLaMA models)** for lightning-fast semantic analysis and prompt enrichment.
-- **Image Generation:** **MiniMax** or **HuggingFace (FLUX/Stable Diffusion)** for high-fidelity visual outputs.
+### Architecture Decision Record
+| Component | Technology | Reason |
+|-----------|-----------|--------|
+| Web Framework | FastAPI | Async-first, automatic OpenAPI docs, Pydantic validation |
+| LLM | Groq (LLaMA 3) | Sub-second inference, multi-key round-robin load balancing |
+| Image Gen | MiniMax | High-fidelity cinematic image generation API |
+| Storage | Cloudinary | Persistent image hosting + CDN delivery |
+| Frontend | Tailwind CSS + Vanilla JS | Zero-dependency, premium design control |
+| Concurrency | asyncio.gather | Parallel scene generation cuts latency by ~60% |
 
 ---
 
@@ -53,76 +87,236 @@ graph TD
 
 ### Backend
 - **Python 3.10+**
-- **FastAPI:** Modern, fast (high-performance) web framework.
-- **AsyncIO & HTTPX:** For non-blocking parallel API calls.
+- **FastAPI** — High-performance async web framework
+- **AsyncIO + HTTPX** — Non-blocking parallel API calls
+- **Pydantic v2** — Request/response schema validation
+- **python-dotenv** — Secure environment variable management
 
 ### AI Engine
-- **Groq Cloud:** Serving LLaMA 3 for rapid scene understanding.
-- **Image Models:** MiniMax-video/image or HuggingFace Inference API.
+- **Groq Cloud** — LLaMA 3 for all 7 LLM pipeline steps
+- **Multi-key Round-Robin** — Load balancing across multiple Groq API keys
+- **MiniMax** — Primary image generation model
+
+### Storage & CDN
+- **Cloudinary** — Image upload, persistent URL hosting, CDN delivery
+- **Local Fallback** — `static/` directory for development
 
 ### Frontend
-- **Vanilla JS / HTML / CSS:** For a lightweight and responsive storyboard dashboard.
+- **Tailwind CSS (CDN)** — Utility-first styling with custom design tokens
+- **Space Grotesk + Inter** — Premium Google Fonts typography
+- **Material Symbols** — Icon system
+- **Vanilla JavaScript** — State management, DOM control, API integration
 
 ---
 
-## 🔄 Pipeline Breakdown
+## 🔄 The 9-Step Pipeline
 
-1. **Input:** User submits a 3–5 sentence narrative.
-2. **Segmentation:** The system breaks the paragraph into logical narrative "beats."
-3. **Feature Extraction:** Extracts `tone`, `emotion`, `environment`, and `context` for every scene.
-4. **Global Context Generation:** Identifies core character traits and visual style to be applied globally.
-5. **Enrichment:** Merges scene attributes with global context to create highly detailed, consistent prompts.
-6. **Prompt Engineering:** Converts enriched descriptions into technical prompts for the image models.
-7. **Parallel Generation:** Uses `asyncio.gather` to generate all storyboard panels simultaneously.
-8. **Storyboard UI:** Renders the final images alongside their original scene captions in a clean grid.
-
----
-
-## 🎨 Features
-
-- ✅ **Cinematic Prompting:** Automatic lighting, lens, and style injection.
-- ✅ **Character Consistency:** Shared attributes across all generated panels.
-- ✅ **Parallel Processing:** Optimized for speed using asynchronous execution.
-- ✅ **Style Customization:** Choose between *Cinematic*, *Realistic*, *Animation*, or *Sketch* styles.
-- ✅ **Clean UI:** Professional storyboard layout suitable for film/ad pitches.
-
----
-
-## ⚡ Performance Optimizations
-
-- **Concurrent Execution:** Parallelizing prompt enrichment and image generation reduces wait times by up to 60%.
-- **Scene Limitation:** Optimized for 3–4 panels per generation to ensure high quality and fast response times.
-- **Lightweight Frontend:** Minimal overhead for fast loading and interaction.
-
----
-
-## 📦 Output Format
-
-Each generated storyboard consists of:
-- **Multiple Panels:** A visual grid representing the narrative flow.
-- **Generated Images:** High-resolution assets maintaining stylistic coherence.
-- **Captions:** The original narrative segment that inspired the visual.
-
----
-
-## 🚀 Future Roadmap
-
-- [ ] **Character Embeddings:** Using LoRA or Reference-Only models for exact character persistence.
-- [ ] **Advanced Segmentation:** Smarter NLP for more complex narrative structures.
-- [ ] **Video Generation:** Extending the storyboard into a short animatic using video-gen models.
-- [ ] **Image Caching:** Integration with Cloudinary for permanent storage and faster retrieval.
-
----
-
-## 📌 Summary
-
-This project demonstrates the power of combining **Semantic LLM Understanding** with **Diffusion Models** to create a coherent, visually rich storytelling system. It moves beyond simple "text-to-image" and enters the realm of **Automated Visual Directing**.
+```
+Narrative Text
+      │
+      ▼
+[1] Global Context Extraction
+      Extract: main_character, character_appearance, clothing,
+               character_identity, environment, tone, visual_style
+      │
+      ▼
+[2] Scene Segmentation
+      Split into 3–5 discrete narrative beats (scenes)
+      │
+      ▼
+[3] Narrative Role Assignment
+      Tag each scene: master_shot / rising_action / climax /
+                      resolution / epilogue / ...
+      │
+      ▼
+[4] Scene Feature Extraction (parallel)
+      Per scene: emotion, tone, environment
+      │
+      ▼
+[5] Scene Enrichment (parallel)
+      Merge scene features + global context → enriched_description
+      │
+      ▼
+[6] Cinematic Prompt Engineering
+      Convert to technical image gen prompt with:
+      - Character appearance/clothing lock
+      - Lighting + lens directives
+      - Style token injection
+      │
+      ▼
+[7] Headline + Caption Generation
+      Short cinematic headline + narrative caption per scene
+      │
+      ▼
+[8] Parallel Image Generation
+      asyncio.gather → MiniMax API for all scenes simultaneously
+      │
+      ▼
+[9] Cloud Upload
+      Each image → Cloudinary → persistent URL
+      │
+      ▼
+StoryboardResponse { panels: [...], total_scenes: N }
+```
 
 ---
 
-### 📄 License
+## 🎨 Frontend Features
+
+| Feature | Description |
+|---------|-------------|
+| **Dark Mode** | Deep obsidian purple (`#0b0814`) with violet (`#7c5cff`) accents |
+| **Light Mode** | Warm lavender/parchment (`#f0ebff`) — premium, not plain white |
+| **Theme Toggle** | Pill-shaped toggle in top navbar, smooth 300ms transition |
+| **Slideshow View** | 21:9 cinematic widescreen with hover controls + dot navigator |
+| **Grid View** | 4-column panel overview with grayscale-to-color hover reveal |
+| **Autoplay** | Configurable 4s interval, Space bar toggle, looping |
+| **Keyboard Nav** | Arrow keys for slide navigation, Escape to exit |
+| **Loading Overlay** | Glassmorphic overlay with animated orb + 5-step progress |
+| **HTML Export** | Downloads a standalone storyboard HTML file with embedded styles |
+| **Character Counter** | Live counter (max 2000 chars) |
+| **Error Display** | Inline glass-card error panel for API or validation errors |
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+```
+Python 3.10+
+pip
+Groq API Key(s)
+MiniMax API Key + Group ID
+Cloudinary Account (cloud name, API key, secret)
+```
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/AbinashB017/AI_storytelling.git
+cd AI_storytelling
+```
+
+### 2. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Configure Environment
+Create a `.env` file in the root directory:
+```env
+# Groq — supports comma-separated keys for load balancing
+GROQ_API_KEYS=your_groq_key_1,your_groq_key_2
+
+# MiniMax
+MINIMAX_API_KEY=your_minimax_key
+MINIMAX_GROUP_ID=your_group_id
+
+# Cloudinary
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+```
+
+### 4. Run the Application
+```bash
+$env:PYTHONPATH="src"          # Windows PowerShell
+uvicorn app.main:app --reload --port 8000
+```
+
+### 5. Open the UI
+Navigate to: **http://localhost:8000/static/index.html**
+
+---
+
+## 📁 Project Structure
+
+```
+AI_storytelling/
+├── src/
+│   └── app/
+│       ├── main.py                    # FastAPI app + CORS + static mount
+│       ├── endpoints/
+│       │   └── storyboard.py          # POST /api/v1/generate-storyboard
+│       ├── models/
+│       │   └── schemas.py             # Pydantic schemas (request/response)
+│       └── services/
+│           ├── pipeline.py            # 9-step orchestration pipeline
+│           ├── groq_client.py         # Groq multi-key client w/ round-robin
+│           ├── image_generator.py     # MiniMax image generation
+│           ├── cloudinary_service.py  # Cloudinary upload service
+│           └── local_storage_service.py # Local image fallback
+├── frontend/
+│   ├── index.html                     # Main UI (Tailwind + custom design system)
+│   ├── app.js                         # Frontend logic (state, API, DOM)
+│   └── style.css                      # Glassmorphic design + light/dark modes
+├── static/                            # Served by FastAPI StaticFiles
+│   ├── index.html
+│   ├── app.js
+│   ├── style.css
+│   └── *.png                          # Locally stored scene images (fallback)
+├── PRD.md                             # Product Requirements Document
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## 📡 API Reference
+
+### `POST /api/v1/generate-storyboard`
+
+**Request Body:**
+```json
+{
+  "text": "A young engineer discovers a hidden talent for painting after losing his job...",
+  "style": "cinematic"
+}
+```
+
+**Response:**
+```json
+{
+  "panels": [
+    {
+      "scene_id": 1,
+      "image_url": "https://res.cloudinary.com/.../scene_1.png",
+      "headline": "The Last Dashboard",
+      "caption": "A young engineer clears his desk under the cold glow of monitors.",
+      "narrative_role": "master_shot"
+    }
+  ],
+  "total_scenes": 4
+}
+```
+
+**Available Styles:** `cinematic` · `realistic` · `anime` · `oil painting` · `sketch`
+
+**Interactive Docs:** http://localhost:8000/docs
+
+---
+
+## ⚡ Performance
+
+- **Parallel Generation:** `asyncio.gather` across all scenes → ~60% faster than sequential
+- **Multi-Key Groq:** Round-robin load balancing prevents rate-limit throttling
+- **Cloudinary CDN:** Generated images served globally via CDN after upload
+
+---
+
+## 🛣️ Roadmap
+
+- [ ] **LoRA Character Embeddings** — Exact character face/appearance persistence
+- [ ] **Video Animatic Export** — Extend storyboard into a short MP4 animatic
+- [ ] **Prompt Version History** — Save and reload past generations
+- [ ] **Style Presets Gallery** — Visual preset picker (noir, dreamlike, etc.)
+- [ ] **Multi-language Input** — Accept narratives in non-English languages
+
+---
+
+## 📄 License
+
 Distributed under the MIT License. See `LICENSE` for more information.
 
 ---
 
-**Developed for AbinashB017 / AI Storytelling**
+**Built with ♦ by Abinash** — *Transforming narratives into cinematic visual stories.*
