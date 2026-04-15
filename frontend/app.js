@@ -4,8 +4,11 @@
  */
 
 // ─── Config ────────────────────────────────────────────────────────────────
-const API_BASE    = "http://localhost:8000";
-const AUTOPLAY_MS = 4000; // Slightly longer for cinematic immersion
+// Auto-detects environment: localhost in dev, Render origin in production
+const API_BASE = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+  ? "http://localhost:8000"
+  : window.location.origin;
+const AUTOPLAY_MS = 4000;
 
 // ─── State ─────────────────────────────────────────────────────────────────
 let panels        = [];

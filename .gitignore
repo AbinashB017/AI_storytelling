@@ -1,10 +1,52 @@
+# ─── Secrets — NEVER commit these ────────────────────────────────────────────
 .env
+.env.local
+.env.production
+.env.*.local
+*.pem
+
+# ─── Python ──────────────────────────────────────────────────────────────────
 __pycache__/
-*.pyc
-*.pyo
-.venv/
-venv/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
 *.egg-info/
 dist/
 build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# ─── Testing ─────────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ─── IDEs ────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ─── OS ──────────────────────────────────────────────────────────────────────
 .DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Node (if any tooling is used) ───────────────────────────────────────────
+node_modules/
+package-lock.json
+package.json

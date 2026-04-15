@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: scenova-api
+    runtime: python
+    region: oregon
+    plan: free
+
+    # ── Build ──────────────────────────────────────────────────────────────────
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+
+    # ── Start ─────────────────────────────────────────────────────────────────
+    # PYTHONPATH must include src/ so `from app.xxx` imports resolve correctly
+    startCommand: PYTHONPATH=src uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+    # ── Health Check ──────────────────────────────────────────────────────────
+    healthCheckPath: /health
+
+    # ── Environment Variables ─────────────────────────────────────────────────
+    # ⚠️  Fill these in on the Render dashboard — NEVER commit real values here
+    envVars:
+      - key: GROQ_API_KEY_1
+        sync: false          # Set manually on Render dashboard
+      - key: GROQ_API_KEY_2
+        sync: false
+      - key: GROQ_API_KEY_3
+        sync: false
+      - key: MINIMAX_API_KEY
+        sync: false
+      - key: MINIMAX_GROUP_ID
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      # Optional: comma-separated allowed origins (leave as * for dev)
+      - key: ALLOWED_ORIGINS
+        value: "*"

@@ -17,10 +17,21 @@ STATIC_DIR = "static"
 
 import urllib.parse
 
-async def save_image_locally(scene_id: int, image_data: str | bytes, is_base64: bool, request_host: str = "http://localhost:8000") -> str:
+async def save_image_locally(
+    scene_id: int,
+    image_data: str | bytes,
+    is_base64: bool,
+    request_host: str = None,
+) -> str:
     """
     Saves the image data to local disk and returns the static URI.
+    request_host: auto-detected from RENDER_EXTERNAL_URL env var if not provided.
     """
+    # In production (Render), RENDER_EXTERNAL_URL is set automatically.
+    # For local dev it falls back to localhost:8000.
+    if request_host is None:
+        request_host = os.getenv("RENDER_EXTERNAL_URL", "http://localhost:8000").rstrip("/")
+
     os.makedirs(STATIC_DIR, exist_ok=True)
     extension = "png"
     if not is_base64 and isinstance(image_data, str) and ("jpeg" in image_data.lower() or "jpg" in image_data.lower()):
