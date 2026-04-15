@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
+from fastapi.responses import RedirectResponse
 
 from app.endpoints.storyboard import router as storyboard_router
 
@@ -59,7 +59,7 @@ if not _static_dir.exists():
     _static_dir.mkdir(parents=True, exist_ok=True)
     logger.info("[STATIC] Created static directory at %s", _static_dir)
 
-app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
+app.mount("/static", StaticFiles(directory=str(_static_dir), html=True), name="static")
 logger.info("[STATIC] Mounted static directory: %s", _static_dir)
 
 
@@ -70,16 +70,10 @@ async def health_check():
     return {"status": "ok"}
 
 
-@app.get("/", tags=["Health"])
+@app.get("/", tags=["Health"], include_in_schema=False)
 async def root():
-    """Root redirect info."""
-    return {
-        "service": "Scenova AI Storyboard Generator",
-        "status": "ok",
-        "ui": "/static/index.html",
-        "docs": "/docs",
-        "health": "/health",
-    }
+    """Redirect root to the frontend UI."""
+    return RedirectResponse(url="/static/index.html")
 
 
 logger.info("[STARTUP] Scenova API v2.0.0 ready.")
