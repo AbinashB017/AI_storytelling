@@ -35,5 +35,17 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+      - key: openrouter_key1
+        sync: false
+      - key: openrouter_key2
+        sync: false
+      - key: openrouter_key3
+        sync: false
+      - key: openrouter_key4
+        sync: false
+      - key: openrouter_key5
+        sync: false
+      - key: openrouter_key6
+        sync: false
       - key: ALLOWED_ORIGINS
         value: "*"

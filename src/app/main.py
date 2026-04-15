@@ -10,7 +10,7 @@ from fastapi.responses import RedirectResponse
 
 from app.endpoints.storyboard import router as storyboard_router
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
 
 # ─── Logging ───────────────────────────────────────────────────────────────
 logging.basicConfig(

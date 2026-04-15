@@ -75,21 +75,27 @@ async def upload_to_cloudinary(scene_id: int, image_bytes: bytes) -> str:
     return url
 
 
-async def resolve_image_url(scene_id: int, image_data: Optional[str | bytes], is_base64: bool) -> Optional[str]:
+async def resolve_image_url(scene_id: int, image_data, is_base64: bool) -> str:
     """
     Resolve final image URL:
-    - If is_base64 → upload to Cloudinary, return CDN URL
-    - If URL        → return as-is (skip Cloudinary)
-    - If None       → return None (panel will be skipped in validator)
+    - If is_base64=True  -> image_data is bytes -> upload to Cloudinary -> CDN URL
+    - If is_base64=False -> image_data is a URL string -> return as-is
+    - On any failure     -> return placeholder URL (never returns None)
     """
+    PLACEHOLDER = "https://placehold.co/1024x576/0f1620/e8a43c?text=Scene+Unavailable"
+
     if image_data is None:
-        return None
+        logger.warning("[CLOUDINARY] Scene %d: no image data, using placeholder", scene_id)
+        return PLACEHOLDER
+
     if not is_base64:
-        # MiniMax returned a direct URL — use it
-        return image_data
-    # Base64 bytes — upload to Cloudinary
+        # Already a URL (placeholder passed through from image_generator)
+        logger.debug("[CLOUDINARY] Scene %d: direct URL, skipping upload", scene_id)
+        return str(image_data)
+
+    # Base64 bytes -> upload to Cloudinary
     try:
         return await upload_to_cloudinary(scene_id, image_data)
     except Exception as exc:
-        logger.error("[CLOUDINARY] Scene %d upload failed: %s", scene_id, exc)
-        return None
+        logger.error("[CLOUDINARY] Scene %d upload failed: %s -- using placeholder", scene_id, exc)
+        return PLACEHOLDER

@@ -123,14 +123,19 @@ async function generateStoryboard() {
 // ══════════════════════════════════════════════════════════════════════════
 function resolveImageSrc(imageUrl) {
   if (!imageUrl) return "";
-  if (imageUrl.startsWith("http")) return imageUrl;
+  if (imageUrl.startsWith("http") || imageUrl.startsWith("/") || imageUrl.startsWith("static/")) {
+    return imageUrl;
+  }
+  // Already a full data URI — use as-is
+  if (imageUrl.startsWith("data:image")) return imageUrl;
+  // Raw base64 string without data URI prefix (legacy fallback)
   return `data:image/png;base64,${imageUrl}`;
 }
 
 function makeImg(panel, idx, onLoad, onError) {
   const img = document.createElement("img");
   img.alt   = `Scene ${idx + 1}`;
-  img.className = "w-full h-full object-cover";
+  img.className = "w-full h-full object-contain bg-black";
   img.onload  = onLoad;
   img.onerror = onError;
   img.src = resolveImageSrc(panel.image_url);

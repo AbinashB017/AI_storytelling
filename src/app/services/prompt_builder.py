@@ -77,13 +77,16 @@ REQUIREMENTS:
 - End with: "Negative: no extra limbs, no distorted hands, no blurry face, no unrealistic anatomy."
 - Max 180 words. No scene labels. No preamble.
 
-Also generate a SHORT HEADLINE (4–6 words, catchy, story-driven) for this scene on the very last line, prefixed with HEADLINE:
+Also on the last two lines, generate:
+HEADLINE: [4-6 word catchy story-driven title for this scene]
+CAPTION: [2-3 vivid, cinematic, emotionally resonant sentences describing what is happening in this scene and why it matters to the story. Write in present tense, as if narrating a film. Make it rich, poetic, and compelling — not just a summary.]
 """
 )
 
 # ─── Consistency Quality Suffix ───────────────────────────────────────────
 QUALITY_SUFFIX = (
-    "Cinematic lighting, volumetric light rays, soft natural shadows, "
+    "Cinematic 16:9 widescreen anamorphic aspect ratio, "
+    "cinematic lighting, volumetric light rays, soft natural shadows, "
     "ultra-detailed photorealistic textures, 8K resolution, "
     "consistent character design, film grain, anamorphic lens, "
     "color graded, sharp focus on subject."
@@ -115,7 +118,7 @@ async def enrich_scene(
 ) -> tuple[str, str]:
     """
     Step 5: Generate a rich cinematic scene description + headline using Groq LLM.
-    Returns (enriched_description, headline).
+    Returns (enriched_description, headline, caption).
     """
     logger.info(
         "[ENRICH] Scene %d (%s) [%d/%d] — calling LLM for enrichment...",
@@ -139,22 +142,32 @@ async def enrich_scene(
     raw = await call_llm(prompt=prompt, system=ENRICHMENT_SYSTEM, temperature=0.75, max_tokens=600)
     raw = raw.strip()
 
-    # Extract headline if present
+    # Extract headline and caption if present
     headline = ""
-    lines = raw.splitlines()
+    caption  = ""
+    lines    = raw.splitlines()
     cleaned_lines = []
     for line in lines:
-        if line.upper().startswith("HEADLINE:"):
-            headline = line.split(":", 1)[-1].strip()
+        stripped = line.strip()
+        if stripped.upper().startswith("HEADLINE:"):
+            headline = stripped.split(":", 1)[-1].strip()
+        elif stripped.upper().startswith("CAPTION:"):
+            caption = stripped.split(":", 1)[-1].strip()
         else:
             cleaned_lines.append(line)
 
     enriched_description = "\n".join(cleaned_lines).strip()
     if not headline:
         headline = scene.narrative_role.replace("_", " ").title()
+    if not caption:
+        # Fallback: use scene_text if LLM didn't produce a caption
+        caption = scene.scene_text
 
-    logger.info("[ENRICH] Scene %d enriched (%d chars) | headline: %s", scene.scene_id, len(enriched_description), headline)
-    return enriched_description, headline
+    logger.info(
+        "[ENRICH] Scene %d enriched (%d chars) | headline: %s | caption_len: %d",
+        scene.scene_id, len(enriched_description), headline, len(caption),
+    )
+    return enriched_description, headline, caption
 
 
 def build_final_prompt(enriched_description: str) -> str:
@@ -178,7 +191,7 @@ async def build_all_enriched_scenes(
     total = len(scenes)
 
     async def process_one(scene: Scene, features: SceneFeatures, idx: int) -> EnrichedScene:
-        enriched_desc, headline = await enrich_scene(
+        enriched_desc, headline, caption = await enrich_scene(
             scene, features, global_context,
             scene_index=idx,
             total_scenes=total,
@@ -192,6 +205,7 @@ async def build_all_enriched_scenes(
             enriched_description=enriched_desc,
             final_prompt=final_prompt,
             headline=headline,
+            caption=caption,
         )
 
     tasks = [process_one(scene, feat, i + 1) for i, (scene, feat) in enumerate(zip(scenes, features_list))]

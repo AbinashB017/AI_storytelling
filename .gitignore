@@ -50,3 +50,8 @@ desktop.ini
 node_modules/
 package-lock.json
 package.json
+scratch_*.py
+debug_*.log
+test_output.png
+scene_output.png
+static/*.png

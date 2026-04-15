@@ -8,9 +8,8 @@ Stage layout (all parallel stages use asyncio.gather):
   Stage 2 [Sync]:       Feature extraction (lightweight, no I/O)
   Stage 3 [Parallel]:   Scene enrichment via LLM  (asyncio.gather)
   Stage 4 [Sync]:       Prompt engineering (CPU only)
-  Stage 5 [Parallel]:   Image generation via MiniMax (asyncio.gather)
-  Stage 6 [Parallel]:   Cloudinary upload if base64 (asyncio.gather)
-  Stage 7 [Sync]:       Validate + assemble panels
+  Stage 5 [Parallel]:   Image generation via OpenRouter (asyncio.gather)
+  Stage 6 [Sync]:       Assemble + validate panels
 """
 
 import asyncio
@@ -70,16 +69,20 @@ async def run(text: str, style: str = "cinematic") -> StoryboardResponse:
     image_results = await generate_all_images(prompt_pairs)
     logger.info("[IMAGES] %d image results received", len(image_results))
 
-    # ── Stage 6 & 7: Assemble + Validate Panels ──────────────────────────────────
-    logger.info("[PIPELINE] Stage 7 → Assembling panels")
+    # ── Stage 6: Assemble URL lookup directly ────────────────────────────────
+    logger.info("[PIPELINE] Stage 6 -> Building URL lookup")
+    url_lookup: dict[int, str] = {}
+    for scene_id, image_data, is_base64 in image_results:
+        url_lookup[scene_id] = str(image_data) if image_data else PLACEHOLDER_URL
+        logger.debug("[PIPELINE] Scene %d final model_output (type=%s, len=%d)", 
+                     scene_id, "base64" if is_base64 else "url", len(str(image_data)))
 
+    # ── Stage 7: Assemble + Validate Panels ──────────────────────────────────
+    logger.info("[PIPELINE] Stage 7 -> Assembling panels")
     scene_lookup = {es.scene_id: es for es in enriched_scenes}
-    url_lookup   = {
-        scene_id: (image_data or PLACEHOLDER_URL)
-        for scene_id, image_data, is_base64 in image_results
-    }
 
     raw_panels: List[Panel] = []
+
     for scene_id, url in url_lookup.items():
         es = scene_lookup.get(scene_id)
         if es is None:
@@ -88,7 +91,7 @@ async def run(text: str, style: str = "cinematic") -> StoryboardResponse:
             scene_id       = scene_id,
             image_url      = url if url else PLACEHOLDER_URL,
             headline       = es.headline or es.narrative_role.replace("_", " ").title(),
-            caption        = es.scene_text,
+            caption        = es.caption or es.scene_text,   # rich LLM caption, fallback to raw text
             narrative_role = es.narrative_role,
         ))
 

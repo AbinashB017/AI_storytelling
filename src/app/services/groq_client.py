@@ -37,40 +37,37 @@ class GroqKeyPool:
         self._initialized = False
 
     def _load_keys(self) -> None:
+        from dotenv import load_dotenv
+        from pathlib import Path
+        _env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+        load_dotenv(_env_path, override=True)  # force re-read .env
+        
         keys: List[Tuple[str, str]] = []
-
         # Auto-detect GROQ_API_KEY_1, _2, _3 ... _N
         for i in range(1, 20):
             val = os.getenv(f"GROQ_API_KEY_{i}", "").strip()
             if val:
                 keys.append((f"key_{i}", val))
 
-        # Legacy fallback: single GROQ_API_KEY
+        # Legacy fallback
         if not keys:
             single = os.getenv("GROQ_API_KEY", "").strip()
             if single:
                 keys.append(("key_1", single))
 
         if not keys:
-            raise EnvironmentError(
-                "No Groq API keys found. Set GROQ_API_KEY_1 (and optionally _2, _3 ...) in .env"
-            )
+            raise EnvironmentError("No Groq API keys found in .env")
 
         self._keys = keys
         self._cycle = itertools.cycle(keys)
         self._clients = {label: AsyncGroq(api_key=key) for label, key in keys}
         self._initialized = True
-        logger.info(
-            "[GROQ] Key pool ready: %d key(s) → %s",
-            len(keys),
-            [k[0] for k in keys],
-        )
+        logger.info("[GROQ] Key pool reloaded: %d keys.", len(keys))
 
     async def next_client(self) -> Tuple[str, AsyncGroq]:
         """Return next (label, client) in round-robin order. Async-safe."""
         async with self._lock:
-            if not self._initialized:
-                self._load_keys()
+            self._load_keys()  # Always reload fresh from .env
             label, _ = next(self._cycle)
             return label, self._clients[label]
 

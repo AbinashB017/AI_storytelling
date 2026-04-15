@@ -2,13 +2,23 @@
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.95+-green)](https://fastapi.tiangolo.com/)
 [![Groq](https://img.shields.io/badge/LLM-Groq%20%2F%20LLaMA3-orange)](https://groq.com)
-[![MiniMax](https://img.shields.io/badge/ImageGen-MiniMax-blue)](https://minimaxi.com)
-[![Cloudinary](https://img.shields.io/badge/Storage-Cloudinary-blueviolet)](https://cloudinary.com)
+[![OpenRouter](https://img.shields.io/badge/ImageGen-OpenRouter%20%2F%20Gemini-blue)](https://openrouter.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Scenova** is a production-grade, AI-powered **Cinematic Visual Director** that transforms a short narrative paragraph into a visually coherent, multi-panel storyboard. The system combines deep LLM reasoning (Groq/LLaMA) with high-fidelity image generation (MiniMax) and persistent cloud storage (Cloudinary) to deliver a professional-grade editorial experience.
+**Scenova** is a production-grade, AI-powered **Cinematic Visual Director** that transforms a short narrative paragraph into a visually coherent, multi-panel storyboard. The system combines deep LLM reasoning (Groq/LLaMA) with high-fidelity image generation (OpenRouter: Gemini 2.5 Flash Image) to deliver a professional-grade editorial experience.
 
 The frontend is a fully redesigned, **glassmorphic dark/light mode UI** built with Tailwind CSS and a custom "Anamorphic Frame" design system — inspired by professional film editing suites.
+
+## 🚀 Live Application
+**[View Live Application →](https://scenova-nf6e.onrender.com/static/index.html)**
+
+## 📸 Visual Gallery (Proof of Work)
+
+Below are actual generations from **Scenova** showing the cinematic consistency and the glassmorphic UI in action.
+
+| Scene 01: Problem | Scene 02: Turning Point | Scene 03: Resolution |
+|:---:|:---:|:---:|
+| ![Tears of Desperate Hope](assets/scenova1.png) | ![Finding Solace In Darkness](assets/scenova2.png) | ![Finding Inner Peace Again](assets/scenova3.png) |
 
 ---
 
@@ -34,8 +44,13 @@ Give Scenova a story in 3–5 sentences. It returns a full, visually consistent 
 - **Loading Overlay:** Animated central orb with pulsing ring and step-by-step pipeline progress.
 - **No backend changes** — all UI work is strictly frontend.
 
+### 🚀 Robust Multi-Key Failover Engine
+- **OpenRouter & Groq Pools:** Added dynamic, round-robin key rotation for both LLM and Image Generation APIs.
+- **Auto-Failover:** If an API key runs out of credits (HTTP 402) or hits a rate limit (HTTP 429), the engine instantly cycles to the next key without crashing.
+- **Fail-Safe Generation:** Implemented placeholder URL fallback so the pipeline *always* completes even if all vendors go down.
+
 ### 🧠 Engine Labeling Update
-- Engine footer updated to accurately reflect: **Groq · MiniMax · Cloudinary**
+- Engine footer updated to accurately reflect: **Groq · OpenRouter · FastAPI**
 
 ---
 
@@ -67,8 +82,8 @@ Give Scenova a story in 3–5 sentences. It returns a full, visually consistent 
          ├─ Step 5: Scene Enrichment             ──► Groq (LLaMA 3)
          ├─ Step 6: Cinematic Prompt Engineering ──► Groq (LLaMA 3)
          ├─ Step 7: Headline + Caption Gen       ──► Groq (LLaMA 3)
-         ├─ Step 8: Parallel Image Generation    ──► MiniMax API
-         └─ Step 9: Cloud Upload + URL Return    ──► Cloudinary
+         ├─ Step 8: Parallel Image Generation    ──► OpenRouter (Gemini 2.5 Flash)
+         └─ Step 9: Local Static Save            ──► FastAPI StaticFiles
 ```
 
 ### Architecture Decision Record
@@ -76,8 +91,8 @@ Give Scenova a story in 3–5 sentences. It returns a full, visually consistent 
 |-----------|-----------|--------|
 | Web Framework | FastAPI | Async-first, automatic OpenAPI docs, Pydantic validation |
 | LLM | Groq (LLaMA 3) | Sub-second inference, multi-key round-robin load balancing |
-| Image Gen | MiniMax | High-fidelity cinematic image generation API |
-| Storage | Cloudinary | Persistent image hosting + CDN delivery |
+| Image Gen | OpenRouter (Gemini Flash)| Ultra-fast high-fidelity parallel generation, easy key cycling |
+| Storage | Local FastAPI Static | Low-latency serving of temporary generations |
 | Frontend | Tailwind CSS + Vanilla JS | Zero-dependency, premium design control |
 | Concurrency | asyncio.gather | Parallel scene generation cuts latency by ~60% |
 
@@ -94,12 +109,12 @@ Give Scenova a story in 3–5 sentences. It returns a full, visually consistent 
 
 ### AI Engine
 - **Groq Cloud** — LLaMA 3 for all 7 LLM pipeline steps
-- **Multi-key Round-Robin** — Load balancing across multiple Groq API keys
-- **MiniMax** — Primary image generation model
+- **Multi-key LLM Pool** — Load balancing across multiple Groq API keys
+- **OpenRouter** — Gemini 2.5 Flash for parallel image generation
+- **Dynamic Failover** — Self-healing API wrapper that cycles through pool keys instantly on 402/429 errors.
 
-### Storage & CDN
-- **Cloudinary** — Image upload, persistent URL hosting, CDN delivery
-- **Local Fallback** — `static/` directory for development
+### Storage & Delivery
+- **FastAPI StaticFiles** — Image persistence directly inside `/static/` for instantaneous delivery and zero external CDN latency limiters.
 
 ### Frontend
 - **Tailwind CSS (CDN)** — Utility-first styling with custom design tokens
@@ -149,11 +164,12 @@ Narrative Text
       │
       ▼
 [8] Parallel Image Generation
-      asyncio.gather → MiniMax API for all scenes simultaneously
+      asyncio.gather → OpenRouter API (Gemini) for all scenes simultaneously
+      Instant failover to next API key if 402/429.
       │
       ▼
-[9] Cloud Upload
-      Each image → Cloudinary → persistent URL
+[9] Static Delivery
+      Each image saved to backend /static/ → static URL returned
       │
       ▼
 StoryboardResponse { panels: [...], total_scenes: N }
@@ -242,9 +258,7 @@ AI_storytelling/
 │       └── services/
 │           ├── pipeline.py            # 9-step orchestration pipeline
 │           ├── groq_client.py         # Groq multi-key client w/ round-robin
-│           ├── image_generator.py     # MiniMax image generation
-│           ├── cloudinary_service.py  # Cloudinary upload service
-│           └── local_storage_service.py # Local image fallback
+│           └── image_generator.py     # OpenRouter key cycling + static saving
 ├── frontend/
 │   ├── index.html                     # Main UI (Tailwind + custom design system)
 │   ├── app.js                         # Frontend logic (state, API, DOM)
