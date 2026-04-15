@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Storyboard Generator</title>
+  <meta name="description" content="Convert your narrative into a cinematic AI-generated visual storyboard." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,600;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ── Hero / Input Section ───────────────────────────────────────────── -->
+  <section id="input-section" class="input-section">
+
+    <div class="hero-bg"></div>
+
+    <div class="input-card">
+      <div class="brand">
+        <span class="brand-icon">🎬</span>
+        <h1 class="brand-title">AI Storyboard <span class="brand-accent">Generator</span></h1>
+        <p class="brand-sub">Transform your story into a cinematic visual experience</p>
+      </div>
+
+      <div class="form-group">
+        <label for="narrative-input" class="form-label">Your Narrative</label>
+        <textarea
+          id="narrative-input"
+          class="form-textarea"
+          rows="5"
+          placeholder="Write 3–5 sentences of your story here…&#10;&#10;Example: A young engineer discovers a hidden talent for painting after losing his job. He struggles through rejection but keeps creating. One day, his art captures the attention of a famous gallery owner. His life transforms completely."
+          maxlength="2000"
+        ></textarea>
+        <div class="char-count"><span id="char-count">0</span> / 2000</div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group half">
+          <label for="style-select" class="form-label">Visual Style</label>
+          <select id="style-select" class="form-select">
+            <option value="cinematic">🎥 Cinematic</option>
+            <option value="realistic">📷 Realistic</option>
+            <option value="anime">✨ Anime</option>
+            <option value="oil painting">🎨 Oil Painting</option>
+            <option value="sketch">✏️ Sketch</option>
+          </select>
+        </div>
+
+        <div class="form-group half align-end">
+          <button id="generate-btn" class="generate-btn" onclick="generateStoryboard()">
+            <span id="btn-text">Generate Storyboard</span>
+            <span id="btn-loader" class="btn-loader hidden"></span>
+          </button>
+        </div>
+      </div>
+
+      <div id="error-msg" class="error-msg hidden"></div>
+    </div>
+  </section>
+
+  <!-- ── Slideshow Section ───────────────────────────────────────────────── -->
+  <section id="slideshow-section" class="slideshow-section hidden">
+
+    <!-- Top bar -->
+    <div class="slideshow-topbar">
+      <button class="back-btn" onclick="backToInput()" title="Back to input">
+        ← Back
+      </button>
+      <div class="slide-counter">
+        <span id="current-slide-num">1</span> / <span id="total-slides">0</span>
+      </div>
+      <button class="autoplay-btn" id="autoplay-btn" onclick="toggleAutoplay()" title="Toggle autoplay">
+        ▶ Autoplay
+      </button>
+    </div>
+
+    <!-- Slide viewer -->
+    <div class="slide-viewport" id="slide-viewport">
+      <div id="slide-container" class="slide-container">
+        <!-- Slides injected by JS -->
+      </div>
+    </div>
+
+    <!-- Caption -->
+    <div class="caption-bar">
+      <div class="narrative-role" id="slide-role"></div>
+      <p class="caption-text" id="slide-caption"></p>
+    </div>
+
+    <!-- Navigation -->
+    <div class="nav-bar">
+      <button class="nav-btn" id="prev-btn" onclick="prevSlide()" title="Previous scene">
+        ←
+      </button>
+
+      <!-- Dot indicators -->
+      <div class="dot-row" id="dot-row"></div>
+
+      <button class="nav-btn" id="next-btn" onclick="nextSlide()" title="Next scene">
+        →
+      </button>
+    </div>
+
+  </section>
+
+  <!-- ── Loading Overlay ─────────────────────────────────────────────────── -->
+  <div id="loading-overlay" class="loading-overlay hidden">
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <p class="loading-title">Crafting your storyboard…</p>
+      <div class="loading-steps">
+        <div class="loading-step active" id="step-1">🧠 Understanding the story</div>
+        <div class="loading-step" id="step-2">🎭 Segmenting scenes</div>
+        <div class="loading-step" id="step-3">✍️ Enriching descriptions</div>
+        <div class="loading-step" id="step-4">🎨 Generating images</div>
+        <div class="loading-step" id="step-5">✅ Assembling storyboard</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
